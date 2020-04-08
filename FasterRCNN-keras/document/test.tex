@@ -1,0 +1,171 @@
+%!TEX program = xelatex
+ 
+\documentclass[UTF8,a4paper,11pt]{ctexart}
+\CTEXsetup[format={\Large\bfseries}]{section}
+\usepackage{xcolor}
+\usepackage{geometry}
+\usepackage{amsmath}
+\geometry{left=2.5cm,right=2.5cm,top=2.5cm,bottom=2.5cm}
+\pagestyle{empty} 
+\title{Faster-RCNN}
+\author{Tan Wentao}
+\date{\today}
+\begin{document}
+\maketitle
+\section{train-frcnn}
+    \subsection{introdution}
+        This file is training the faster RCNN. It will load the config params firstly, then initialize the network params used by the command line params.You must choose pascal\_voc or simple, then you will get all images.Using get\_anchor\_gt() to get the anchors.Then it defines the network architecture.The network includes base\_networks(Resnet, VGG, Inception), rpn and classifier. Train the network and calculate the loss in the end.
+    \subsection{functions}
+        \begin{itemize}
+            \item {\textcolor{blue}{sys.setrecursionlimit}} \\
+                It can change the maximum recurion depth.
+            \item {\textcolor{blue}{OptionParse}} \\
+                You can create an instance of OptionParser, populate it with options, and parser the command line. \\
+                (1)path: Path to training data. \\
+                (2)parser: Parser to use one of simple or pascal\_voc. \\
+                (3)num\_rois: Number of ROIs per iteration which be randomly selected. \\
+                (4)horizontal\_flips: Augment with horizontal flips in training. \\
+                (5)vertical\_filps: Augment with vertical flips in testing. \\
+                (6)rot\_90: Augment with 90 degree rotations in training.\\
+                (7)num\_epoch: Number of epochs. \\
+                (8)config\_filename: Location to store all the metadata related to the training to be used when testing.\\
+                (9)output\_weight\_path: Output path for weights. \\ 
+                (10)input\_weight\_path: Input path for weights. If not specified, will try to load default weights provided by keras. \\
+            \end{itemize}
+
+\section{test-frcnn}
+\section{measure-map}
+\section{keras-frcnn}
+    \subsection{config}
+        \begin{itemize}
+            \item {\textcolor{blue}{verbose}} \\
+            \item {\textcolor{blue}{use\_horizontal\_flips}} \\
+            Augment with horizontal flips in training.
+            \item {\textcolor{blue}{use\_vertical\_flips}} \\
+            Augment with vertical flips in training.
+            \item {\textcolor{blue}{anchor\_box\_scales}} \\
+            Set a list with multi-scales of anchor.
+            \item {\textcolor{blue}{anchor\_box\_ratios}} \\
+            Set a list with multi-ratios(height : width) of a anchor.
+            \item {\textcolor{blue}{im\_size}} \\
+            Set the image size.
+            \item {\textcolor{blue}{img\_channel\_mean}} \\
+            \item {\textcolor{blue}{img\_scaling\_factor}} \\
+            \item {\textcolor{blue}{num\_rois}} \\
+            \item {\textcolor{blue}{rpn\_stride}} \\
+            \item {\textcolor{blue}{balanced\_classes}} \\
+            \item {\textcolor{blue}{std\_scaling}} \\
+            \item {\textcolor{blue}{classifier\_regr\_std}} \\
+            \item {\textcolor{blue}{rpn\_min\_overlap}} \\
+            \item {\textcolor{blue}{rpn\_max\_overlap}} \\
+            \item {\textcolor{blue}{classifier\_min\_overlap}} \\
+            \item {\textcolor{blue}{classifier\_max\_overlap}} \\
+            \item {\textcolor{blue}{class\_mapping}} \\
+            \item {\textcolor{blue}{image\_dim\_ordering}} \\
+            \item {\textcolor{blue}{model\_path}} \\    
+        \end{itemize}
+    \subsection{data-augment}
+        \begin{itemize}
+            \item {\textcolor{blue}{copy}} \\
+            copy(x) will return a shallow copy of x. deepcopy(x) will return a deep copy of x. In case of shallow copy, a reference of object is copied in other object. It means that any changes made to a copy of object do reflect in the original object. In case of deep copy, a copy of object is copied in other object. It means that any changes made to a copy of object do not reflect in the original object.
+            \item {\textcolor{blue}{augment}} \\
+            Using three methods to enhance the image data.There are 1.use\_horizontal\_flips, 2.use\_vertical\_filps and 3. rot\_90.The function will return the augment images and original images.
+        \end{itemize}
+    \subsection{data-generators} 
+        \begin{itemize}
+            \item {\textcolor{blue}{get\_img\_output\_length}} \\
+            It calculate the size of the image after four convlutions.The kernel size is [7,3,1,1], padding size is 6 and stride is 2.Then can calculate the output size.
+                \begin{equation}
+                    output\_size = \frac{input\_size - kernel\_size + stride }{stride}
+                \end{equation}
+            \item {\textcolor{blue}{area}} \\
+            Input is a box A, then will return the area of A.
+            \item {\textcolor{blue}{union}} \\
+            Inputs are two boxs A and B. A(or B) is [x\_A\_min, y\_A\_min, x\_A\_max, y\_A\_max] 
+            \begin{equation}
+                \begin{cases}
+                    x\_min = min(x\_A\_min, x\_B\_min) \\
+                    y\_min = min(y\_A\_min, y\_B\_min) \\
+                    x\_max = max(x\_A\_max, x\_B\_max) \\
+                    y\_max = max(y\_A\_max, y\_B\_max)
+                \end{cases}
+            \end{equation}
+            According to the above formula, then
+            \begin{equation}
+                \begin{cases}
+                    w = x\_max - x\_min \\
+                    h = y\_max - y\_min
+                \end{cases}
+            \end{equation}
+            So it will return quadruples [x, y, w, h]. It represents the largest region after the merge.
+            \item {\textcolor{blue}{intersection}} \\
+            Input are two boxs A and B. A(or B) is [x\_A\_min, y\_A\_max, y\_A\_max]
+            \begin{equation}
+                \begin{cases}
+                    x\_min = max(x\_A\_min, x\_B\_min) \\
+                    y\_min = max(y\_A\_min, y\_B\_min) \\
+                    x\_max = min(x\_A\_max, x\_B\_max) \\
+                    y\_max = min(y\_A\_max, y\_B\_max)
+                \end{cases}
+            \end{equation}
+            According to the above formula. Then
+            \begin{equation}
+                \begin{cases}
+                    w = x\_max - x\_min \\
+                    h = y\_max - y\_min
+                \end{cases}
+            \end{equation}
+            So it will return quadruples [x, y, w, h]. It represents the intersection region.
+            \item {\textcolor{blue}{get\_new\_img\_size}} \\
+            The size of original image is adjusted according to the length of the minimum side of the input.
+            \begin{displaymath}
+                \begin{cases}
+                    \frac{width}{height} = \frac{new\_width}{new\_height} \\
+                    new\_width = img\_min\_size \qquad if \quad width < height \\ 
+                    new\_heighte = img\_min\_size \qquad if \quad width > height
+                \end{cases}
+            \end{displaymath}
+            \item {\textcolor{red}{SimpleSelector}}
+            
+            \item {\textcolor{red}{SimpleSelector::skip\_sample\_for\_balanced\_class}}
+
+            \item {\textcolor{blue}{calc\_rpn}}
+            \item {\textcolor{red}{threadsafe\_iter}}
+            \item {\textcolor{blue}{threadsafe\_generator}}
+            \item {\textcolor{blue}{get\_anchor\_gt}}
+            \item {}
+        \end{itemize}
+    \subsection{FixBatchNormalization}
+    \subsection{losses}
+        \begin{itemize}
+            \item {\textcolor{blue}{rpn\_loss\_regr}}
+            \item {\textcolor{blue}{rpn\_loss\_cls}}
+            \item {\textcolor{blue}{class\_loss\_regr}}
+            \item {\textcolor{blue}{class\_loss\_cls}}
+        \end{itemize}
+    \subsection{pascal-voc-parse}
+    \subsection{resnet}
+    This is the model of resnet50. Reference: [Deep Residual Learning for Image Recognition](https://arxiv.org/abs/1512.03385)
+        \begin{itemize}
+            \item {\textcolor{blue}{identity\_block}}
+            \item {\textcolor{blue}{identity\_block\_td}}
+            \item {\textcolor{blue}{conv\_block}}
+            \item {\textcolor{blue}{conv\_block\_td}}
+            \item {\textcolor{blue}{nn\_base}}
+            \item {\textcolor{blue}{classifier\_layers}}
+            \item {\textcolor{blue}{rpn}}
+            \item {\textcolor{blue}{classifier}}
+            
+        \end{itemize}
+    \subsection{roi-helpers}
+    \subsection{RoiPoolingConv}
+    \subsection{simple-parser}
+\section{requirements}
+        \begin{itemize}
+            \item {\textcolor{green}{h5py}}
+            \item {\textcolor{green}{Keras==2.0.3}}
+            \item {\textcolor{green}{numpy}}
+            \item {\textcolor{green}{opencv-python}}
+            \item {\textcolor{green}{sklearn}}
+        \end{itemize}
+\end{document}
