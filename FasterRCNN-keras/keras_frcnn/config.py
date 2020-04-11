@@ -2,26 +2,33 @@ from keras import backend as K
 
 
 class Config:
-
+	# 配置信息采用一个类的方式定义，后面加载之后可以通过成员属性进行访问
 	def __init__(self):
-
+		# 是否打印一些其他多余的信息
 		self.verbose = True
 
 		# setting for data augmentation
+		# 图像进行水平翻转
 		self.use_horizontal_flips = False
+		# 图像进行垂直翻转
 		self.use_vertical_flips = False
+		# 旋转90度
 		self.rot_90 = False
 
 		# anchor box scales
+		# 三种尺度
 		self.anchor_box_scales = [128, 256, 512]
 
 		# anchor box ratios
+		# 三种长宽比
 		self.anchor_box_ratios = [[1, 1], [1, 2], [2, 1]]
 
 		# size to resize the smallest side of the image
+		# 图像最小边缘的长度为600，输入图片进行rescale时的约束
 		self.im_size = 600
 
 		# image channel-wise mean to subtract
+		# 0-255的缩减值
 		self.img_channel_mean = [103.939, 116.779, 123.68]
 		self.img_scaling_factor = 1.0
 
@@ -29,8 +36,10 @@ class Config:
 		self.num_rois = 4
 
 		# stride at the RPN (this depends on the network configuration)
+		# 经过特征提取网络处理之后变为原始输入的1/16
 		self.rpn_stride = 16
 
+		# 是否进行类别均衡
 		self.balanced_classes = False
 
 		# scaling the stdev
@@ -52,9 +61,11 @@ class Config:
 		# weight files can be found at:
 		# https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_th_dim_ordering_th_kernels_notop.h5
 		# https://github.com/fchollet/deep-learning-models/releases/download/v0.2/resnet50_weights_tf_dim_ordering_tf_kernels_notop.h5
+		# theano和tensorflow的通道顺序不同，加载不同的基础模型文件
 		if K.image_dim_ordering() == 'th':
 			self.base_net_weights = 'resnet50_weights_th_dim_ordering_th_kernels_notop.h5'
 		else:
 			self.base_net_weights = 'resnet50_weights_tf_dim_ordering_tf_kernels.h5'
 
+		# 本地的全部模型文件
 		self.model_path = 'model_frcnn.hdf5'
