@@ -18,21 +18,27 @@ sys.setrecursionlimit(40000)
 # 构造参数解析器
 parser = OptionParser()
 
+# ‘dest’是存储的变量，可以访问dest的值得到参数值
+# 测试集路径
 parser.add_option("-p", "--path", dest="test_path", help="Path to test data.", default='data/')
+# roi数量
 parser.add_option("-n", "--num_rois", dest="num_rois",
 				help="Number of ROIs per iteration. Higher means more memory use.", default=32)
+# 超参数配置文件
 parser.add_option("--config_filename", dest="config_filename", help=
 				"Location to read the metadata related to the training (generated when training).",
 				default="config.pickle")
 
 (options, args) = parser.parse_args()
 
+# 寻找是否有测试集路径
 if not options.test_path:   # if filename is not given
 	parser.error('Error: path to test data must be specified. Pass --path to command line')
 
-
+# 输出配置文件
 config_output_filename = options.config_filename
 
+# 加载配置文件，C是一个config对象
 with open(config_output_filename, 'rb') as f_in:
 	C = pickle.load(f_in)
 
@@ -43,11 +49,11 @@ C.rot_90 = False
 
 img_path = options.test_path
 
-
 def format_img(img, C):
 	img_min_side = float(C.im_size)
 	(height,width,_) = img.shape
-	
+
+	# 对原始图片进行放缩，固定最短边，按照缩放比例进行放缩
 	if width <= height:
 		f = img_min_side/width
 		new_height = int(f * height)
@@ -57,35 +63,51 @@ def format_img(img, C):
 		new_width = int(f * width)
 		new_height = int(img_min_side)
 	img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_CUBIC)
+	# BGR->RGB
 	img = img[:, :, (2, 1, 0)]
 	img = img.astype(np.float32)
 	img[:, :, 0] -= C.img_channel_mean[0]
 	img[:, :, 1] -= C.img_channel_mean[1]
 	img[:, :, 2] -= C.img_channel_mean[2]
+	# 像素缩放
 	img /= C.img_scaling_factor
+	# HWC->CHW 维度转换（高维转置）
 	img = np.transpose(img, (2, 0, 1))
+	# NCHW
 	img = np.expand_dims(img, axis=0)
 	return img
 
+# Method to transform the coordinates of the bounding box to its original size
+# 将缩放后的图像框放大到原始图像中，平移+放大
+def get_real_coordinates(ratio, x1, y1, x2, y2):
+
+	real_x1 = int(round(x1 // ratio))
+	real_y1 = int(round(y1 // ratio))
+	real_x2 = int(round(x2 // ratio))
+	real_y2 = int(round(y2 // ratio))
 
 class_mapping = C.class_mapping
 
 if 'bg' not in class_mapping:
 	class_mapping['bg'] = len(class_mapping)
 
+# 反向映射字典，key: 序号值，value: 类别名
 class_mapping = {v: k for k, v in class_mapping.items()}
 print(class_mapping)
+# 将类别名对应为一个颜色，key: 类别名，value: RGB颜色
 class_to_color = {class_mapping[v]: np.random.randint(0, 255, 3) for v in class_mapping}
+# 用户的命令行参数对config中的num_rois进行修改
 C.num_rois = int(options.num_rois)
 
 if K.image_dim_ordering() == 'th':
+	# 元组，生成三维的，但是后两个为空维度
 	input_shape_img = (3, None, None)
 	input_shape_features = (1024, None, None)
 else:
 	input_shape_img = (None, None, 3)
 	input_shape_features = (None, None, 1024)
 
-
+# 实例化一个keras-tensor
 img_input = Input(shape=input_shape_img)
 roi_input = Input(shape=(C.num_rois, 4))
 feature_map_input = Input(shape=input_shape_features)
@@ -94,6 +116,7 @@ feature_map_input = Input(shape=input_shape_features)
 shared_layers = nn.nn_base(img_input, trainable=True)
 
 # define the RPN, built on the base layers
+# 每一个anchor生成的框的个数
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 rpn_layers = nn.rpn(shared_layers, num_anchors)
 
