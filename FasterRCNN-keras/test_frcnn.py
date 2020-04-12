@@ -116,12 +116,13 @@ feature_map_input = Input(shape=input_shape_features)
 shared_layers = nn.nn_base(img_input, trainable=True)
 
 # define the RPN, built on the base layers
-# 每一个anchor生成的框的个数
+# 每一个anchor生成的框的个数，此处为9个
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
 rpn_layers = nn.rpn(shared_layers, num_anchors)
 
 classifier = nn.classifier(feature_map_input, roi_input, C.num_rois, nb_classes=len(class_mapping), trainable=True)
 
+# 输入为img_input，网络层结构为rpn_layers
 model_rpn = Model(img_input, rpn_layers)
 model_classifier_only = Model([feature_map_input, roi_input], classifier)
 
@@ -141,31 +142,42 @@ bbox_threshold = 0.8
 
 visualise = True
 
+# 遍历所有测试集的图片
 for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 	if not img_name.lower().endswith(('.bmp', '.jpeg', '.jpg', '.png', '.tif', '.tiff')):
 		continue
+	# 输出图片名字
 	print(img_name)
+	# 记录开始时间
 	st = time.time()
+	# 合并图片名和根目录路径
 	filepath = os.path.join(img_path,img_name)
-
+	# 读取图片
 	img = cv2.imread(filepath)
+	# 图像预处理：大小缩放，去均值，像素缩放
+	X = format_img(img, C) # NCHW
 
-	X = format_img(img, C)
-
+	# 从NCHW访问索引N=0的数组（三维），并将RGB->BGR，再进行转置得到HWC，全部过程都是深拷贝
 	img_scaled = np.transpose(X.copy()[0, (2, 1, 0), :, :], (1, 2, 0)).copy()
+	# BGR补上RGB顺序的均值
 	img_scaled[:, :, 0] += 123.68
 	img_scaled[:, :, 1] += 116.779
 	img_scaled[:, :, 2] += 103.939
-	
+
+	# int8转换
 	img_scaled = img_scaled.astype(np.uint8)
 
 	if K.image_dim_ordering() == 'tf':
+		# NCHW->NHWC 提高tensorflow计算效率
 		X = np.transpose(X, (0, 2, 3, 1))
 
 	# get the feature maps and output from the RPN
+	# 调用网络计算结果，X->NHWC，输出的结果就是rpn_layer的返回值
+	# Y1: classification
+	# Y2: regression
+	# F: features
 	[Y1, Y2, F] = model_rpn.predict(X)
-	
-
+	# roi: region of interest
 	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.7)
 
 	# convert from (x1,y1,x2,y2) to (x,y,w,h)
@@ -238,7 +250,9 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 			cv2.rectangle(img_scaled, (textOrg[0] - 5, textOrg[1]+baseLine - 5), (textOrg[0]+retval[0] + 5, textOrg[1]-retval[1] - 5), (0, 0, 0), 2)
 			cv2.rectangle(img_scaled, (textOrg[0] - 5,textOrg[1]+baseLine - 5), (textOrg[0]+retval[0] + 5, textOrg[1]-retval[1] - 5), (255, 255, 255), -1)
 			cv2.putText(img_scaled, textLabel, textOrg, cv2.FONT_HERSHEY_DUPLEX, 1, (0, 0, 0), 1)
+	# 计算耗费的时间
 	print('Elapsed time = {}'.format(time.time() - st))
+	# 显示原图
 	cv2.imshow('img', img_scaled)
 	cv2.waitKey(0)
 	#cv2.imwrite('./imgs/{}.png'.format(idx),img_scaled)
