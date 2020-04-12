@@ -221,41 +221,63 @@ def non_max_suppression_fast(boxes, probs, overlap_thresh=0.9, max_boxes=300):
 
 import time
 def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr=True, max_boxes=300,overlap_thresh=0.9):
+	'''
 
+	:param rpn_layer: classification
+	:param regr_layer: regression
+	:param C: config.Config
+	:param dim_ordering: tf or th
+	:param use_regr: ...
+	:param max_boxes: ...
+	:param overlap_thresh: ...
+	:return:
+	'''
 	regr_layer = regr_layer / C.std_scaling
 
 	anchor_sizes = C.anchor_box_scales
 	anchor_ratios = C.anchor_box_ratios
-
+	# NHWC
 	assert rpn_layer.shape[0] == 1
 
 	if dim_ordering == 'th':
 		(rows,cols) = rpn_layer.shape[2:]
-
+	# H->rows W->cols 均为最后特征图的大小
 	elif dim_ordering == 'tf':
 		(rows, cols) = rpn_layer.shape[1:3]
-
+	# 当前维度C上的层数位置，每一个通道层代表了一个尺度的anchor-box
 	curr_layer = 0
 	if dim_ordering == 'tf':
+		# 4HWC C=num_anchors
 		A = np.zeros((4, rpn_layer.shape[1], rpn_layer.shape[2], rpn_layer.shape[3]))
 	elif dim_ordering == 'th':
 		A = np.zeros((4, rpn_layer.shape[2], rpn_layer.shape[3], rpn_layer.shape[1]))
 
+	# 遍历每一个框尺寸，一次计算一个框尺寸下的所有anchor的原始框
 	for anchor_size in anchor_sizes:
 		for anchor_ratio in anchor_ratios:
-
+			# anchor_size * anchor_ratio[0]为原图尺度，/C.rpn_stride相当于将框转换到最后一层特征图上的框尺寸
 			anchor_x = (anchor_size * anchor_ratio[0])/C.rpn_stride
 			anchor_y = (anchor_size * anchor_ratio[1])/C.rpn_stride
 			if dim_ordering == 'th':
 				regr = regr_layer[0, 4 * curr_layer:4 * curr_layer + 4, :, :]
 			else:
+				# 取出HWC，C只取当前anchor-box对应的四个回归值
 				regr = regr_layer[0, :, :, 4 * curr_layer:4 * curr_layer + 4]
+				# HWC->CHW
 				regr = np.transpose(regr, (2, 0, 1))
 
-			X, Y = np.meshgrid(np.arange(cols),np. arange(rows))
+			# shape: rows * cols 网格数据
+			# X每一行都是np.arange(cols)
+			# Y每一列都是np.arange(rows)
+			X, Y = np.meshgrid(np.arange(cols), np.arange(rows))
 
+			# A的第一个维度为四个坐标，第二个第三个维度是当前这一个通道层的H和W，第四个维度表示当前通道层
+			# (x,y)为靠近(0,0)的框角
+			# 每一个框的X维度（宽）的坐标
 			A[0, :, :, curr_layer] = X - anchor_x/2
+			# 每一个框的Y维度（高）的坐标
 			A[1, :, :, curr_layer] = Y - anchor_y/2
+			# 框的大小
 			A[2, :, :, curr_layer] = anchor_x
 			A[3, :, :, curr_layer] = anchor_y
 
@@ -274,7 +296,7 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr=True, max_boxes=
 
 			curr_layer += 1
 
-	all_boxes = np.reshape(A.transpose((0, 3, 1,2)), (4, -1)).transpose((1, 0))
+	all_boxes = np.reshape(A.transpose((0, 3, 1, 2)), (4, -1)).transpose((1, 0))
 	all_probs = rpn_layer.transpose((0, 3, 1, 2)).reshape((-1))
 
 	x1 = all_boxes[:, 0]
