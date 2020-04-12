@@ -145,11 +145,13 @@ def nn_base(input_tensor=None, trainable=False):
     if input_tensor is None:
         img_input = Input(shape=input_shape)
     else:
+        # 如果不是keras-tensor，重新构建
         if not K.is_keras_tensor(input_tensor):
             img_input = Input(tensor=input_tensor, shape=input_shape)
         else:
             img_input = input_tensor
 
+    # BN层维度
     if K.image_dim_ordering() == 'tf':
         bn_axis = 3
     else:
@@ -198,12 +200,12 @@ def classifier_layers(x, input_shape, trainable=False):
 
 
 def rpn(base_layers,num_anchors):
-
+    # 特征图大小不变，通道变为512
     x = Convolution2D(512, (3, 3), padding='same', activation='relu', kernel_initializer='normal', name='rpn_conv1')(base_layers)
-
+    # 1*1卷积，每一个像素点有num_anchors个通道
     x_class = Convolution2D(num_anchors, (1, 1), activation='sigmoid', kernel_initializer='uniform', name='rpn_out_class')(x)
     x_regr = Convolution2D(num_anchors * 4, (1, 1), activation='linear', kernel_initializer='zero', name='rpn_out_regress')(x)
-
+    # x_class就是所有像素点的num_anchors的所有预测类别，x_regr为anchor的四个坐标数据的回归值，base_layer为基础网络结构的特征图，为了后面共享使用
     return [x_class, x_regr, base_layers]
 
 def classifier(base_layers, input_rois, num_rois, nb_classes = 21, trainable=False):
