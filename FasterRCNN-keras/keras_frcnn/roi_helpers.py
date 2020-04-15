@@ -232,6 +232,7 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr=True, max_boxes=
 	:param overlap_thresh: ...
 	:return:
 	'''
+	# 对预测出来的anchor-box坐标进行缩放
 	regr_layer = regr_layer / C.std_scaling
 
 	anchor_sizes = C.anchor_box_scales
@@ -247,7 +248,7 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr=True, max_boxes=
 	# 当前维度C上的层数位置，每一个通道层代表了一个尺度的anchor-box
 	curr_layer = 0
 	if dim_ordering == 'tf':
-		# 4HWC C=num_anchors
+		# 4HWC C=num_anchors 创建一个新矩阵存储框的信息，第一个维度表示坐标的四个值，后面三个是为了统计每一个anchor的box
 		A = np.zeros((4, rpn_layer.shape[1], rpn_layer.shape[2], rpn_layer.shape[3]))
 	elif dim_ordering == 'th':
 		A = np.zeros((4, rpn_layer.shape[2], rpn_layer.shape[3], rpn_layer.shape[1]))
@@ -273,7 +274,7 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr=True, max_boxes=
 
 			# A的第一个维度为四个坐标，第二个第三个维度是当前这一个通道层的H和W，第四个维度表示当前通道层
 			# (x,y)为靠近(0,0)的框角
-			# 每一个框的X维度（宽）的坐标
+			# 每一个框的X维度（宽）的坐标，都是以当前anchor的坐标作为中心点对框进行计算
 			A[0, :, :, curr_layer] = X - anchor_x/2
 			# 每一个框的Y维度（高）的坐标
 			A[1, :, :, curr_layer] = Y - anchor_y/2
@@ -283,19 +284,21 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr=True, max_boxes=
 
 			if use_regr:
 				A[:, :, :, curr_layer] = apply_regr_np(A[:, :, :, curr_layer], regr)
-
+			# 长度不能比1小
 			A[2, :, :, curr_layer] = np.maximum(1, A[2, :, :, curr_layer])
 			A[3, :, :, curr_layer] = np.maximum(1, A[3, :, :, curr_layer])
+			# 修改后两个维度为斜对角的框角坐标
 			A[2, :, :, curr_layer] += A[0, :, :, curr_layer]
 			A[3, :, :, curr_layer] += A[1, :, :, curr_layer]
 
+			# 范围不能超出图像大小，这样子相当于四周的框只有一部分区域了
 			A[0, :, :, curr_layer] = np.maximum(0, A[0, :, :, curr_layer])
 			A[1, :, :, curr_layer] = np.maximum(0, A[1, :, :, curr_layer])
 			A[2, :, :, curr_layer] = np.minimum(cols-1, A[2, :, :, curr_layer])
 			A[3, :, :, curr_layer] = np.minimum(rows-1, A[3, :, :, curr_layer])
 
 			curr_layer += 1
-
+	# 转置后在修改成二维矩阵形式，这样子一个anchor的多个box是连续存放的
 	all_boxes = np.reshape(A.transpose((0, 3, 1, 2)), (4, -1)).transpose((1, 0))
 	all_probs = rpn_layer.transpose((0, 3, 1, 2)).reshape((-1))
 
@@ -303,7 +306,7 @@ def rpn_to_roi(rpn_layer, regr_layer, C, dim_ordering, use_regr=True, max_boxes=
 	y1 = all_boxes[:, 1]
 	x2 = all_boxes[:, 2]
 	y2 = all_boxes[:, 3]
-
+	# 去除异常情况
 	idxs = np.where((x1 - x2 >= 0) | (y1 - y2 >= 0))
 
 	all_boxes = np.delete(all_boxes, idxs, 0)
