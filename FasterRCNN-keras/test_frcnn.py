@@ -177,7 +177,7 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 	# Y2: regression
 	# F: features
 	[Y1, Y2, F] = model_rpn.predict(X)
-	# roi: region of interest
+	# roi: region of interest [-1, 4]的维度
 	R = roi_helpers.rpn_to_roi(Y1, Y2, C, K.image_dim_ordering(), overlap_thresh=0.7)
 
 	# convert from (x1,y1,x2,y2) to (x,y,w,h)
@@ -187,12 +187,13 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 	# apply the spatial pyramid pooling to the proposed regions
 	bboxes = {}
 	probs = {}
-
+	# 一次遍历一个anchor
 	for jk in range(R.shape[0]//C.num_rois + 1):
+		# 增加一个维度，并且取出当前anchor在R中框的位置
 		ROIs = np.expand_dims(R[C.num_rois*jk:C.num_rois*(jk+1), :], axis=0)
 		if ROIs.shape[1] == 0:
 			break
-
+		# 遍历到最后一个anchor
 		if jk == R.shape[0]//C.num_rois:
 			#pad R
 			curr_shape = ROIs.shape
@@ -201,9 +202,10 @@ for idx, img_name in enumerate(sorted(os.listdir(img_path))):
 			ROIs_padded[:, :curr_shape[1], :] = ROIs
 			ROIs_padded[0, curr_shape[1]:, :] = ROIs[0, 0, :]
 			ROIs = ROIs_padded
-
+		# 经过网络层计算出框的类别和回归值
 		[P_cls, P_regr] = model_classifier_only.predict([F, ROIs])
 
+		# 下面就是为了将box计算出在原图上的大小
 		for ii in range(P_cls.shape[1]):
 
 			if np.max(P_cls[0, ii, :]) < bbox_threshold or np.argmax(P_cls[0, ii, :]) == (P_cls.shape[2] - 1):
